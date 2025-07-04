@@ -86,4 +86,42 @@ class ClienteServiceTest {
         verify(clienteRepository, never()).deleteById(2L);
         logger.info("testEliminarClienteInexistente ejecutado con éxito. Cliente con ID {} no existía.", 2L);
     }
+
+    @Test
+    void testObtenerPorCorreo() {
+        when(clienteRepository.findByCorreo("ejemplo@gmail.com")).thenReturn(cliente);
+
+        Cliente encontrado = clienteService.obtenerPorCorreo("ejemplo@gmail.com");
+
+        assertNotNull(encontrado);
+        assertEquals("Juan", encontrado.getNombre());
+        logger.info("✅ Test obtenerPorCorreo ejecutado correctamente para {}", encontrado.getCorreo());
+    }
+
+    @Test
+    void testEliminarYVerificarNoExiste() {
+        when(clienteRepository.existsById(1L)).thenReturn(true).thenReturn(false);
+
+        boolean eliminado = clienteService.eliminar(1L);
+        when(clienteRepository.existsById(1L)).thenReturn(false);
+
+        assertTrue(eliminado);
+        assertFalse(clienteRepository.existsById(1L));
+
+        logger.info("✅ Test eliminar y verificar inexistencia ejecutado con éxito.");
+    }
+
+    @Test
+    void testActualizarCliente() {
+        cliente.setNombre("Nombre Actualizado");
+        when(clienteRepository.save(cliente)).thenReturn(cliente);
+
+        Cliente actualizado = clienteService.guardar(cliente);
+
+        assertEquals("Nombre Actualizado", actualizado.getNombre());
+        logger.info("✅ Test actualizar cliente ejecutado. Nuevo nombre: {}", actualizado.getNombre());
+    }
+
+    
+
 }

@@ -2,6 +2,7 @@ package com.example.login.controller;
 
 import com.example.login.model.Cliente;
 import com.example.login.repository.ClienteRepository;
+import com.example.login.security.JwtTokenProvider;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import org.apache.commons.validator.routines.EmailValidator;
@@ -11,7 +12,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -21,36 +25,45 @@ public class LoginController {
 
     @Autowired
     private ClienteRepository clienteRepository;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+
     private static final Logger logger = LoggerFactory.getLogger(LoginController.class);
 
     // INICIAR SESIÓN
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Cliente cliente) {
+    public ResponseEntity<?> login(@RequestBody Cliente clientes) {
         try {
-            logger.info("Intento de login con correo: {}", cliente.getCorreo());
+            logger.info("Intento de login con correo: {}", clientes.getCorreo());
 
-            Preconditions.checkArgument(!Strings.isNullOrEmpty(cliente.getCorreo()), "Correo obligatorio");
-            Preconditions.checkArgument(!Strings.isNullOrEmpty(cliente.getPassword()), "Contraseña obligatoria");
-            Preconditions.checkArgument(EmailValidator.getInstance().isValid(cliente.getCorreo()), "Correo inválido");
+            Preconditions.checkArgument(!Strings.isNullOrEmpty(clientes.getCorreo()), "Correo obligatorio");
+            Preconditions.checkArgument(!Strings.isNullOrEmpty(clientes.getPassword()), "Contraseña obligatoria");
+            Preconditions.checkArgument(EmailValidator.getInstance().isValid(clientes.getCorreo()), "Correo inválido");
 
-            Optional<Cliente> optionalCliente = Optional.ofNullable(clienteRepository.findByCorreo(cliente.getCorreo()));
+            Optional<Cliente> optionalUsuario = Optional.ofNullable(clienteRepository.findByCorreo(clientes.getCorreo()));
 
-            if (optionalCliente.isPresent() &&
-                optionalCliente.get().getPassword().equals(cliente.getPassword())) {
+            if (optionalUsuario.isPresent() && optionalUsuario.get().getPassword().equals(clientes.getPassword())) {
+                logger.info("Login exitoso para el usuario: {}", optionalUsuario.get().getCorreo());
 
-                logger.info("Login exitoso para el usuario: {}", optionalCliente.get().getCorreo());
-                return ResponseEntity.ok(optionalCliente.get());
+                String token = jwtTokenProvider.generateToken(clientes.getCorreo());
+
+                Map<String, Object> response = new HashMap<>();
+                response.put("token", token);
+                response.put("cliente", optionalUsuario.get());
+
+                return ResponseEntity.ok(response);
             } else {
-                logger.warn("Login fallido: credenciales incorrectas para el correo {}", cliente.getCorreo());
+                logger.warn("Login fallido: credenciales incorrectas para el correo {}", clientes.getCorreo());
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
             }
-
         } catch (IllegalArgumentException e) {
             logger.warn("Validación fallida en login: {}", e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             logger.error("Error interno en login", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno del servidor");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error interno del servidor");
         }
     }
 
@@ -61,6 +74,7 @@ public class LoginController {
             logger.info("Intento de registro para correo: {}", cliente.getCorreo());
 
             Preconditions.checkArgument(!Strings.isNullOrEmpty(cliente.getNombre()), "Nombre obligatorio");
+            Preconditions.checkArgument(!Strings.isNullOrEmpty(cliente.getApellido()), "Apellido obligatorio");
             Preconditions.checkArgument(!Strings.isNullOrEmpty(cliente.getCorreo()), "Correo obligatorio");
             Preconditions.checkArgument(!Strings.isNullOrEmpty(cliente.getPassword()), "Contraseña obligatoria");
 
@@ -75,13 +89,13 @@ public class LoginController {
 
             logger.info("Registro exitoso para el correo: {}", cliente.getCorreo());
             return ResponseEntity.status(HttpStatus.CREATED).body(nuevoCliente);
-
         } catch (IllegalArgumentException e) {
             logger.warn("Validación fallida en registro: {}", e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             logger.error("Error interno al registrar cliente", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error al registrar el cliente");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error al registrar el cliente");
         }
     }
 }
